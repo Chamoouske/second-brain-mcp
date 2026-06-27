@@ -136,3 +136,23 @@ docker compose up --build
 ```
 
 By default, the MCP endpoint is `http://127.0.0.1:3000/mcp`, and the health check is `http://127.0.0.1:3000/health`.
+
+## Parent Repository Dispatch
+
+This repository includes a GitHub Actions workflow that dispatches a workflow in the parent repository whenever `master` receives a push.
+
+Required repository settings:
+
+- Repository variable `PARENT_REPOSITORY`: parent repository in `owner/repo` format.
+- Repository secret `PARENT_REPO_TOKEN`: token with permission to dispatch workflows in the parent repository.
+
+Optional repository variables:
+
+- `PARENT_WORKFLOW_FILE`: parent workflow file name. Defaults to `second-brain.yml`.
+- `PARENT_REF`: parent branch or ref. Defaults to `master`.
+
+Note: if the parent repository checks out this project as a submodule, the parent workflow will use the submodule commit recorded in the parent repository. To always build the latest `master` from this repository, the parent workflow should update the submodule before building, for example:
+
+```sh
+git submodule update --remote second-brain-mcp
+```

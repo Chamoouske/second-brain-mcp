@@ -1,0 +1,54 @@
+name: Dispatch Parent Build
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch-parent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate dispatch configuration
+        env:
+          PARENT_REPOSITORY: ${{ vars.PARENT_REPOSITORY }}
+          PARENT_REPO_TOKEN: ${{ secrets.PARENT_REPO_TOKEN }}
+        run: |
+          if [ -z "$PARENT_REPOSITORY" ]; then
+            echo "Repository variable PARENT_REPOSITORY is required. Example: owner/parent-repo"
+            exit 1
+          fi
+
+          if [ -z "$PARENT_REPO_TOKEN" ]; then
+            echo "Secret PARENT_REPO_TOKEN is required. It must be able to dispatch workflows in the parent repository."
+            exit 1
+          fi
+
+      - name: Dispatch parent workflow
+        uses: actions/github-script@v7
+        env:
+          PARENT_REPOSITORY: ${{ vars.PARENT_REPOSITORY }}
+          PARENT_WORKFLOW_FILE: ${{ vars.PARENT_WORKFLOW_FILE || 'second-brain.yml' }}
+          PARENT_REF: ${{ vars.PARENT_REF || 'master' }}
+        with:
+          github-token: ${{ secrets.PARENT_REPO_TOKEN }}
+          script: |
+            const parentRepository = process.env.PARENT_REPOSITORY;
+            const [owner, repo] = parentRepository.split("/");
+
+            if (!owner || !repo) {
+              throw new Error(`PARENT_REPOSITORY must use owner/repo format. Received: ${parentRepository}`);
+            }
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: process.env.PARENT_WORKFLOW_FILE,
+              ref: process.env.PARENT_REF
+            });
+
+            core.info(`Dispatched ${process.env.PARENT_WORKFLOW_FILE} on ${parentRepository}@${process.env.PARENT_REF}`);
