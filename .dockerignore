@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+reports/
+.stryker-tmp/
+.git/
+.agents/
+.codex/
+.second-brain/
+*.log

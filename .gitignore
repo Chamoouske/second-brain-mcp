@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+reports/
+.stryker-tmp/
+.article-text.txt
+.second-brain/
