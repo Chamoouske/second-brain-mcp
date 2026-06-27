@@ -14,12 +14,14 @@ describe("HTTP transport", () => {
       readHttpServerOptions({
         HOST: "0.0.0.0",
         PORT: "8080",
-        MCP_HTTP_PATH: "second-brain"
+        MCP_HTTP_PATH: "second-brain",
+        MCP_ALLOWED_HOSTS: "example.local, localhost "
       })
     ).toEqual({
       host: "0.0.0.0",
       port: 8080,
-      path: "/second-brain"
+      path: "/second-brain",
+      allowedHosts: ["example.local", "localhost"]
     });
   });
 
@@ -27,7 +29,8 @@ describe("HTTP transport", () => {
     expect(readHttpServerOptions({})).toEqual({
       host: "127.0.0.1",
       port: 3000,
-      path: "/mcp"
+      path: "/mcp",
+      allowedHosts: undefined
     });
 
     const app = createHttpApp({ path: " " });

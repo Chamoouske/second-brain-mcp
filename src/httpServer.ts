@@ -11,10 +11,13 @@ export interface HttpServerOptions {
   host: string;
   port: number;
   path: string;
+  allowedHosts?: string[];
 }
 
 export interface HttpAppOptions {
   path: string;
+  host?: string;
+  allowedHosts?: string[];
   buildMcpServer?: () => McpServer;
   createTransport?: (options: ConstructorParameters<typeof StreamableHTTPServerTransport>[0]) => StreamableHTTPServerTransport;
 }
@@ -40,6 +43,13 @@ function sendJsonRpcError(res: Response, status: number, message: string): void 
   });
 }
 
+function logHttp(message: string): void {
+  if (process.env.LOG_LEVEL === "silent") {
+    return;
+  }
+  process.stderr.write(`[second-brain-mcp] ${message}\n`);
+}
+
 async function closeTransports(transports: TransportMap): Promise<void> {
   await Promise.all(
     Object.entries(transports).map(async ([sessionId, transport]) => {
@@ -55,7 +65,15 @@ export function createHttpApp(options: HttpAppOptions): Express {
   const createTransport =
     options.createTransport ?? ((transportOptions) => new StreamableHTTPServerTransport(transportOptions));
   const transports: TransportMap = {};
-  const app = createMcpExpressApp();
+  const app = createMcpExpressApp({ host: options.host, allowedHosts: options.allowedHosts });
+
+  app.use((req, res, next) => {
+    const startedAt = Date.now();
+    res.on("finish", () => {
+      logHttp(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - startedAt}ms)`);
+    });
+    next();
+  });
 
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
@@ -73,6 +91,7 @@ export function createHttpApp(options: HttpAppOptions): Express {
           onsessioninitialized: (newSessionId) => {
             if (transport) {
               transports[newSessionId] = transport;
+              logHttp(`initialized MCP HTTP session ${newSessionId}`);
             }
           }
         });
@@ -93,6 +112,7 @@ export function createHttpApp(options: HttpAppOptions): Express {
 
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
+      logHttp(`HTTP transport error: ${error instanceof Error ? error.message : String(error)}`);
       if (!res.headersSent) {
         sendJsonRpcError(res, 500, error instanceof Error ? error.message : "Internal server error");
       }
@@ -137,21 +157,33 @@ export function readHttpServerOptions(env = process.env): HttpServerOptions {
     throw new Error("PORT or MCP_HTTP_PORT must be an integer between 1 and 65535");
   }
 
+  const allowedHosts = env.MCP_ALLOWED_HOSTS?.split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+
   return {
     host: env.HOST ?? "127.0.0.1",
     port,
-    path: normalizeHttpPath(env.MCP_HTTP_PATH ?? "/mcp")
+    path: normalizeHttpPath(env.MCP_HTTP_PATH ?? "/mcp"),
+    allowedHosts: allowedHosts && allowedHosts.length > 0 ? allowedHosts : undefined
   };
 }
 
 export async function startHttpServer(options = readHttpServerOptions()): Promise<HttpServer> {
-  const app = createHttpApp({ path: options.path });
+  const app = createHttpApp({ path: options.path, host: options.host, allowedHosts: options.allowedHosts });
   return new Promise((resolve, reject) => {
     const server = app.listen(options.port, options.host, () => {
+      const displayHost = options.host === "0.0.0.0" ? "127.0.0.1" : options.host;
+      logHttp(`HTTP server listening at http://${displayHost}:${options.port}${options.path}`);
+      logHttp(`Health check available at http://${displayHost}:${options.port}/health`);
       resolve(server);
     });
-    server.once("error", reject);
+    server.once("error", (error) => {
+      logHttp(`HTTP server failed to start: ${error.message}`);
+      reject(error);
+    });
     server.once("close", () => {
+      logHttp("HTTP server closed");
       const close = app.locals.closeMcpTransports as (() => Promise<void>) | undefined;
       void close?.();
     });

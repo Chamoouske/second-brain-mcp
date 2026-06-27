@@ -116,6 +116,17 @@ HTTP endpoints:
 - `GET /mcp`
 - `DELETE /mcp`
 
+Streamable HTTP clients must send an `Accept` header that includes both `application/json` and `text/event-stream`.
+
+Example initialize request:
+
+```sh
+curl -X POST http://127.0.0.1:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"example","version":"0.0.0"}}}'
+```
+
 ## Docker
 
 The container runs HTTP by default and uses `/data/second-brain` as the internal vault root.
