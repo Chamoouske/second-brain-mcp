@@ -1,10 +1,10 @@
 # second-brain-mcp
 
-MCP local-first para gerenciar um second brain em arquivos. O servidor recebe texto via tools MCP e escreve tudo dentro de uma raiz configurada, sem exigir que consumidores tenham acesso direto às pastas.
+Local-first MCP server for managing a file-based second brain. Consumers send text through MCP tools; the server writes and audits files inside a configured vault root, so clients do not need direct filesystem access.
 
-## Pastas
+## Folder Layout
 
-A raiz vem de `SECOND_BRAIN_ROOT` ou de `.second-brain/config.json`.
+The vault root comes from `SECOND_BRAIN_ROOT` or from `.second-brain/config.json`.
 
 ```text
 SECOND_BRAIN_ROOT/
@@ -16,18 +16,18 @@ SECOND_BRAIN_ROOT/
     manifest.json
 ```
 
-- `raw/`: documentos fonte recebidos como texto.
-- `wiki/`: artigos de conhecimento. Entram como `pending_audit`.
-- `wiki/rejected/`: drafts reprovados, removíveis depois do TTL.
-- `outputs/`: respostas, relatórios e sínteses geradas.
+- `raw/`: original source documents received as text.
+- `wiki/`: knowledge articles. New wiki entries start as `pending_audit`.
+- `wiki/rejected/`: rejected drafts, eligible for cleanup after the configured retention period.
+- `outputs/`: generated answers, reports, and syntheses.
 
-## Auditoria
+## Audit Flow
 
-`wiki_search` só retorna itens com status `approved`. Todo `wiki_input` cria um item `pending_audit`, que precisa passar por `audit_update`.
+`wiki_search` only returns entries with status `approved`. Every `wiki_input` creates a `pending_audit` item that must be reviewed with `audit_update`.
 
-Reprovações exigem comentário e movem o arquivo para `wiki/rejected/`. O tempo de retenção é configurado por `SECOND_BRAIN_REJECTED_RETENTION_DAYS`, com padrão de 30 dias.
+Rejections require a comment and move the file to `wiki/rejected/`. Retention is configured with `SECOND_BRAIN_REJECTED_RETENTION_DAYS`; the default is 30 days.
 
-## Tools MCP
+## MCP Tools
 
 - `raw_input`
 - `raw_search`
@@ -39,29 +39,36 @@ Reprovações exigem comentário e movem o arquivo para `wiki/rejected/`. O temp
 - `audit_update`
 - `purge_rejected`
 
-## Configuração
+## Configuration
 
-Preferencialmente:
+Preferred environment variables:
 
 ```powershell
-$env:SECOND_BRAIN_ROOT="C:\Users\ajaxl\Documents\my-second-brain"
+$env:SECOND_BRAIN_ROOT="C:\path\to\second-brain"
 $env:SECOND_BRAIN_REJECTED_RETENTION_DAYS="30"
 ```
 
-Veja também [.env.example](C:/Users/ajaxl/Documents/second-brain-mcp/.env.example).
+Linux/macOS example:
 
-Fallback opcional em `.second-brain/config.json` no diretório onde o servidor roda:
+```sh
+export SECOND_BRAIN_ROOT="/path/to/second-brain"
+export SECOND_BRAIN_REJECTED_RETENTION_DAYS="30"
+```
+
+See `.env.example` for all supported variables.
+
+Optional fallback in `.second-brain/config.json`, relative to the process working directory:
 
 ```json
 {
-  "root": "C:\\Users\\ajaxl\\Documents\\my-second-brain",
+  "root": "/path/to/second-brain",
   "rejectedRetentionDays": 30
 }
 ```
 
-## Desenvolvimento
+## Development
 
-```powershell
+```sh
 npm install
 npm test
 npm run test:coverage
@@ -69,18 +76,24 @@ npm run mutate
 npm run build
 ```
 
-O projeto exige cobertura global mínima de 90% no Vitest. Testes de mutação rodam com Stryker via `npm run mutate`.
+The project enforces at least 90% global coverage with Vitest. Mutation testing runs with Stryker through `npm run mutate`.
 
-## Transportes
+## Transports
 
-Por padrão, o servidor roda em `stdio`, adequado para clientes MCP locais:
+By default, the server runs with `stdio`, which is suitable for local MCP clients:
 
-```powershell
+```sh
 npm run build
 npm start
 ```
 
-Para Streamable HTTP:
+For Streamable HTTP:
+
+```sh
+MCP_TRANSPORT=http HOST=127.0.0.1 PORT=3000 MCP_HTTP_PATH=/mcp npm start
+```
+
+On PowerShell:
 
 ```powershell
 $env:MCP_TRANSPORT="http"
@@ -90,13 +103,13 @@ $env:MCP_HTTP_PATH="/mcp"
 npm start
 ```
 
-Também existe:
+There is also a convenience script:
 
-```powershell
+```sh
 npm run start:http
 ```
 
-Endpoints HTTP:
+HTTP endpoints:
 
 - `GET /health`
 - `POST /mcp`
@@ -105,10 +118,10 @@ Endpoints HTTP:
 
 ## Docker
 
-O container roda em HTTP por padrão e usa `/data/second-brain` como raiz interna.
+The container runs HTTP by default and uses `/data/second-brain` as the internal vault root.
 
-```powershell
+```sh
 docker compose up --build
 ```
 
-Por padrão, o MCP fica em `http://127.0.0.1:3000/mcp`, com health check em `http://127.0.0.1:3000/health`.
+By default, the MCP endpoint is `http://127.0.0.1:3000/mcp`, and the health check is `http://127.0.0.1:3000/health`.
